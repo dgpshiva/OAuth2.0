@@ -1,20 +1,18 @@
 from flask import Flask, render_template, request, redirect, jsonify, url_for, flash
-
-
-from sqlalchemy import create_engine, asc
-from sqlalchemy.orm import sessionmaker
-from database_setup import Base, Restaurant, MenuItem, User
-
+from flask import make_response
 from flask import session as login_session
-import random
-import string
-
-from oauth2client.client import flow_from_clientsecrets
-from oauth2client.client import FlowExchangeError
 import httplib2
 import json
-from flask import make_response
+from oauth2client.client import FlowExchangeError
+from oauth2client.client import flow_from_clientsecrets
+import random
 import requests
+from sqlalchemy import create_engine, asc
+from sqlalchemy.orm import sessionmaker
+import string
+
+from database_setup import Base, Restaurant, MenuItem, User
+
 
 app = Flask(__name__)
 

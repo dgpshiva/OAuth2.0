@@ -1,7 +1,9 @@
+from passlib.apps import custom_app_context as pwd_context
+from sqlalchemy import create_engine
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy import create_engine
+
 
 Base = declarative_base()
 
@@ -13,6 +15,15 @@ class User(Base):
     name = Column(String(250), nullable=False)
     email = Column(String(250), nullable=False)
     picture = Column(String(250))
+
+    username = Column(String(32), index=True)
+    password_hash = Column(String(64))
+
+    def hash_password(self, password):
+        self.password_hash = pwd_context.encrypt(password)
+
+    def verify_password(self, password):
+        return pwd_context.verify(password, self.password_hash)
 
 
 class Restaurant(Base):
