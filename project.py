@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, jsonify, url_for, flash
-from flask import make_response
+from flask import abort, make_response, g
 from flask import session as login_session
 import httplib2
 import json
@@ -10,6 +10,9 @@ import requests
 from sqlalchemy import create_engine, asc
 from sqlalchemy.orm import sessionmaker
 import string
+
+from flask_httpauth import HTTPBasicAuth
+auth = HTTPBasicAuth()
 
 from database_setup import Base, Restaurant, MenuItem, User
 
@@ -27,6 +30,14 @@ Base.metadata.bind = engine
 
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
+
+@auth.verify_password
+def verify_password(username, password):
+    user = session.query(User).filter_by(username = username).first()
+    if not user or not user.verify_password(password):
+        return False
+    g.user = user
+    return True
 
 
 # Create anti-forgery state token
@@ -107,9 +118,10 @@ def gconnect():
 
     data = answer.json()
 
-    login_session['username'] = data['name']
+    login_session['name'] = data['name']
     login_session['picture'] = data['picture']
     login_session['email'] = data['email']
+    login_session['username'] = data['email']
 
     # See if a user exists, if it doesn't make a new one
     user_id = getUserID(login_session['email'])
@@ -119,30 +131,43 @@ def gconnect():
 
     output = ''
     output += '<h1>Welcome, '
-    output += login_session['username']
+    output += login_session['name']
     output += '!</h1>'
     output += '<img src="'
     output += login_session['picture']
     output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
-    flash("you are now logged in as %s" % login_session['username'])
+    flash("you are now logged in as %s" % login_session['name'])
     print "done!"
     return output
 
+@app.route('/createUser', methods = ['POST'])
+def new_user():
+    username = request.json.get('username')
+    password = request.json.get('password')
+    if username is None or password is None:
+        abort(400) # missing arguments
+    if session.query(User).filter_by(username = username).first() is not None:
+        abort(400) # existing user
+    name=request.json.get('name')
+    user = User(username = username, name = name)
+    user.hash_password(password)
+    session.add(user)
+    session.commit()
+    return user.id
 
 # User Helper Functions
 def createUser(login_session):
-    newUser = User(name=login_session['username'], email=login_session[
-                   'email'], picture=login_session['picture'])
+    newUser = User(name=login_session['name'],
+    email=login_session['email'], picture=login_session['picture'], username=login_session['username'])
+    newUser.hash_password("")
     session.add(newUser)
     session.commit()
     user = session.query(User).filter_by(email=login_session['email']).one()
     return user.id
 
-
 def getUserInfo(user_id):
     user = session.query(User).filter_by(id=user_id).one()
     return user
-
 
 def getUserID(email):
     try:
@@ -170,7 +195,7 @@ def gdisconnect():
         # Reset the user's sesson.
         del login_session['access_token']
         del login_session['gplus_id']
-        del login_session['username']
+        del login_session['name']
         del login_session['email']
         del login_session['picture']
 
